@@ -8,16 +8,37 @@
 
 ## 현재 상태 (Current Status)
 
-- **📋 프로젝트 문서**: [docs/face-analysis-app-handover.md](docs/face-analysis-app-handover.md) (종합 852라인 프로젝트 명세서)
-- **🔍 의존성 검증**: [VERIFICATION_REPORT.md](VERIFICATION_REPORT.md) (의존성 검증 상태)
+**진행률: 0% (0 / 17,302 파일 처리됨)**
 
-### 진행 요약
+- **📋 프로젝트 문서**: [docs/face-analysis-app-handover.md](docs/face-analysis-app-handover.md) (852라인 프로젝트 명세서)
+- **🔍 의존성 검증**: [VERIFICATION_REPORT.md](VERIFICATION_REPORT.md)
+- **📝 실수 내역 및 교정**: [docs/MISTAKES_AND_CORRECTIONS.md](docs/MISTAKES_AND_CORRECTIONS.md) (프로젝트 진행 중 수정 사항 기록)
 
-- ✅ **프로젝트 인수 문서 완료**: 852라인 상세 명세서 작성
-- ✅ **의존성 설치 및 검증 완료** (주의사항: insightface 0.2.1 vs 0.7.3 버전 차이)
-- ✅ **핵심 모듈 구현 완료**: detector, recognizer, classifier, database, checkpoint
-- ⚠️ **샘플 이미지 준비 필요**: 35명분의 샘플 이미지 배치 대기
-- 📋 **Manager 준비 완료**: 소스/출력 경로 제공 대기
+### 실제 데이터 현황
+
+- **📁 원본 소스**: `/Volumes/01022610461/_PRJ/entire`
+  - 이미지: 12,550개
+  - 동영상: 565개
+  - 총계: 17,302개 (11GB)
+  - 디스크 여유: 146GB (15% 남음 - ⚠️ 주의 필요)
+
+- **📸 샘플 이미지**: 3,106개 확인 (person_01~person_07)
+- **💾 데이터베이스**: 초기화됨 (metadata.db)
+- **📤 출력 폴더**: 35개 person 폴더 생성됨 (모두 비어있음)
+- **🔢 임베딩**: 미생성 (embeddings/ 비어있음)
+
+### 준비 완료 항목
+
+- ✅ config.yaml 설정 완료 (InsightFace buffalo_l 모델)
+- ✅ 디렉토리 구조 준비 완료
+- ✅ 데이터베이스 스키마 초기화
+- ✅ 의존성 설치 (insightface 0.2.1 - 버전 차이 주의)
+
+### 대기 중인 항목
+
+- ⏳ 샘플 임베딩 벡터 생성 미진행
+- ⏳ 얼굴 감지 및 분류 미진행
+- ⏳ person_08~person_35 샘플 이미지 필요
 
 ### 다음 단계 (Next Steps)
 
