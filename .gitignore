@@ -43,3 +43,27 @@ config.yaml
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+venv*/
+venv_arm64/
+
+# Project specific
+samples/
+embeddings/
+data/*.db
+data/*.json
+logs/
+*.log
+review_queue/
+error_files/
+classified_output/
+
+# OMC state
+.omc/state/
+
