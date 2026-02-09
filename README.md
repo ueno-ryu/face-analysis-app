@@ -25,34 +25,42 @@
 
 ## 설치 방법
 
-### 1. 저장소 클론
+### 🚀 빠른 시작 (권장)
 
 ```bash
+# 저장소 클론
 git clone https://github.com/ueno-ryu/face-analysis-app.git
 cd face-analysis-app
+
+# 자동화된 설치 실행
+./setup.sh
+
+# 완료!
 ```
 
-### 2. 가상환경 생성 및 활성화
+### 📋 수동 설치
+
+### 1. 가상환경 생성 및 활성화
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 3. 의존성 설치
+### 2. 의존성 설치
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. 설정 파일 생성
+### 3. 설정 파일 생성
 
 ```bash
 cp config.yaml.example config.yaml
 # config.yaml을 환경에 맞게 수정
 ```
 
-### 5. 샘플 이미지 배치
+### 4. 샘플 이미지 배치
 
 `samples/person_01/` ~ `samples/person_35/` 디렉토리에 각각 20장의 샘플 이미지를 배치합니다.
 
