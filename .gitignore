@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Data & Metadata
+data/*.db
+data/*.json
+*.npy
+embeddings/
+
+# Logs
+logs/*.log
+*.log
+
+# Temporary Files
+review_queue/
+error_files/
+classified_output/
+
+# macOS
+.DS_Store
+._*
+
+# Config (sensitive paths)
+config.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,23 @@
+# Core dependencies
+insightface==0.7.3
+onnxruntime==1.16.0
+numpy==1.24.3
+opencv-python==4.8.1.78
+Pillow==10.0.1
+
+# Database
+sqlite3
+
+# GUI
+tkinter
+
+# Utilities
+pyyaml==6.0.1
+tqdm==4.66.1
+
+# Video processing
+ffmpeg-python==0.2.0
+
+# Apple M1 Metal support
+# onnxruntime>=1.13.0 includes CoreMLExecutionProvider
+# Install with: pip install onnxruntime-coreml (optional, for explicit Metal support)

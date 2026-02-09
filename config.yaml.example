@@ -1,0 +1,91 @@
+# Face Analysis App Configuration
+
+paths:
+  # Source directory with 17,000 files
+  source_directory: "/Volumes/01022610461/_PRJ/entire/"
+
+  # Output directory for classified files
+  output_directory: "/Volumes/01022610461/_PRJ/face-analysis-app/classified_output/"
+
+  # Database path
+  database_path: "./data/metadata.db"
+
+  # Sample images directory
+  samples_directory: "./samples/"
+
+  # Embeddings cache directory
+  embeddings_directory: "./embeddings/"
+
+recognition:
+  # InsightFace model name
+  model_name: "buffalo_l"
+
+  # Initial confidence threshold (0.0 - 1.0)
+  confidence_threshold: 0.75
+
+  # Detection size
+  det_size: [640, 640]
+
+  # Execution providers (in order of preference)
+  # CoreMLExecutionProvider: Apple M1 Metal acceleration
+  # CPUExecutionProvider: Fallback to CPU
+  providers:
+    - "CoreMLExecutionProvider"
+    - "CPUExecutionProvider"
+
+processing:
+  # Number of files to process in each batch
+  batch_size: 100
+
+  # Number of parallel workers (auto-detected: CPU count)
+  parallel_workers: 8
+
+  # Video sampling (frames per second)
+  video_sample_fps: 2
+
+  # Checkpoint save interval (number of files)
+  checkpoint_interval: 100
+
+  # Auto-adjust threshold interval (number of files)
+  threshold_adjust_interval: 500
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "DEBUG"
+
+  # Log file paths
+  processing_log: "./logs/processing_{date}.log"
+  error_log: "./logs/errors.log"
+
+# Person IDs and names (1-35)
+persons:
+  count: 35
+  # person_01 through person_35
+
+# Threshold adjustment settings
+threshold:
+  initial: 0.75
+  min: 0.50
+  max: 0.95
+  step: 0.05
+
+  # Target review ratio (if outside this range, adjust threshold)
+  target_ratio_min: 0.10
+  target_ratio_max: 0.30
+
+# File extensions to process
+file_extensions:
+  images:
+    - ".jpg"
+    - ".jpeg"
+    - ".png"
+    - ".JPG"
+    - ".JPEG"
+    - ".PNG"
+  videos:
+    - ".mp4"
+    - ".mov"
+    - ".avi"
+    - ".mkv"
+    - ".MP4"
+    - ".MOV"
