@@ -130,8 +130,8 @@ def mode_rebuild_embeddings(config: dict):
         embeddings_dir=config['paths']['embeddings_directory'],
         database_path=config['paths']['database_path'],
         model_name=config['recognition']['model_name'],
-        det_size=tuple(config['recognition']['det_size']),
-        providers=config['recognition']['providers'],
+        detector_backend=config['recognition']['detector_backend'],
+        enforce_detection=config['recognition']['enforce_detection'],
     )
 
     success = classifier.generate_sample_embeddings()
@@ -166,9 +166,9 @@ def mode_scan(config: dict, resume: bool = False):
         embeddings_dir=config['paths']['embeddings_directory'],
         database_path=config['paths']['database_path'],
         model_name=config['recognition']['model_name'],
+        detector_backend=config['recognition']['detector_backend'],
+        enforce_detection=config['recognition']['enforce_detection'],
         confidence_threshold=config['recognition']['confidence_threshold'],
-        det_size=tuple(config['recognition']['det_size']),
-        providers=config['recognition']['providers'],
         parallel_workers=config['processing']['parallel_workers'],
         video_sample_fps=config['processing']['video_sample_fps'],
         checkpoint_interval=config['processing']['checkpoint_interval'],
@@ -205,7 +205,8 @@ def mode_review(config: dict):
     launch_reviewer(
         database_path=config['paths']['database_path'],
         output_dir=config['paths']['output_directory'],
-        model_name=config['recognition']['model_name']
+        model_name=config['recognition']['model_name'],
+        detector_backend=config['recognition']['detector_backend']
     )
 
 

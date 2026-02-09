@@ -1,7 +1,7 @@
 """
 Face Detection Module
 
-Detects faces in images and extracts face embeddings using InsightFace.
+Detects faces in images and extracts face embeddings using DeepFace.
 """
 
 import cv2
@@ -25,56 +25,36 @@ class Face:
 
 class FaceDetector:
     """
-    Face detector using InsightFace library.
+    Face detector using DeepFace library.
 
-    Supports Apple M1 Metal acceleration via CoreMLExecutionProvider.
+    Supports multiple backends: VGG-Face, GoogleFace, ArcFace, Facenet.
     """
 
-    def __init__(self, model_name: str = "buffalo_l",
-                 det_size: Tuple[int, int] = (640, 640),
-                 providers: List[str] = None):
+    def __init__(self, model_name: str = "VGG-Face",
+                 detector_backend: str = "retinaface",
+                 enforce_detection: bool = True):
         """
         Initialize the face detector.
 
         Args:
-            model_name: InsightFace model name (default: buffalo_l)
-            det_size: Detection size (width, height)
-            providers: ONNX execution providers (e.g., ["CoreMLExecutionProvider", "CPUExecutionProvider"])
+            model_name: DeepFace model name (default: VGG-Face)
+            detector_backend: Face detector backend (default: retinaface)
+            enforce_detection: Whether to enforce face detection
         """
         self.model_name = model_name
-        self.det_size = det_size
-        self.providers = providers or ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+        self.detector_backend = detector_backend
+        self.enforce_detection = enforce_detection
 
         logger.info(f"Initializing FaceDetector with model: {model_name}")
-        logger.info(f"Detection size: {det_size}")
-        logger.info(f"Execution providers: {providers}")
+        logger.info(f"Detector backend: {detector_backend}")
 
         try:
-            import insightface
-            self.app = insightface.app.FaceAnalysis(
-                name=model_name,
-                providers=self.providers
-            )
-            self.app.prepare(ctx_id=-1, det_size=det_size)  # ctx_id=-1 for CPU/Metal
+            from deepface import DeepFace
+            self.DeepFace = DeepFace
             logger.info("FaceDetector initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize FaceDetector: {e}")
-            # Try fallback to CPU only
-            if "CoreMLExecutionProvider" in self.providers:
-                logger.warning("Attempting fallback to CPU execution")
-                self.providers = ["CPUExecutionProvider"]
-                try:
-                    self.app = insightface.app.FaceAnalysis(
-                        name=model_name,
-                        providers=self.providers
-                    )
-                    self.app.prepare(ctx_id=-1, det_size=det_size)
-                    logger.info("FaceDetector initialized with CPU fallback")
-                except Exception as e2:
-                    logger.error(f"Failed to initialize FaceDetector even with CPU fallback: {e2}")
-                    raise
-            else:
-                raise
+            raise
 
     def detect_faces(self, image: np.ndarray,
                     min_confidence: float = 0.5) -> List[Face]:
@@ -93,28 +73,45 @@ class FaceDetector:
             return []
 
         try:
-            # Detect faces
-            faces = self.app.get(image)
+            # Import DeepFace module directly
+            from deepface import DeepFace
+
+            # Detect faces using DeepFace
+            detections = DeepFace.extract_faces(
+                image,
+                detector_backend=self.detector_backend,
+                enforce_detection=self.enforce_detection
+            )
+
+            if not isinstance(detections, list):
+                detections = [detections] if detections is not None else []
 
             results = []
-            for face in faces:
-                if face.det_score < min_confidence:
+            for det in detections:
+                # Extract confidence if available
+                confidence = det.get('confidence', 0.0)
+                if confidence < min_confidence:
                     continue
 
                 # Extract bounding box
-                bbox = face.bbox.astype(int).tolist()
+                # DeepFace returns: x, y, w, h (top-left corner)
+                x, y, w, h = det['facial_area']['x'], det['facial_area']['y'], det['facial_area']['w'], det['facial_area']['h']
+                bbox = [x, y, x + w, y + h]
                 # Ensure bbox is within image bounds
                 bbox = self._clamp_bbox(bbox, image.shape)
 
-                # Extract embedding
-                embedding = face.embedding
+                # Extract embedding for this face
+                embedding = self._extract_embedding(image, bbox)
+
+                if embedding is None:
+                    continue
 
                 # Create Face object
                 face_obj = Face(
                     bbox=tuple(bbox),
                     embedding=embedding,
-                    confidence=float(face.det_score),
-                    landmarks=face.landmark
+                    confidence=float(confidence),
+                    landmarks=None  # DeepFace doesn't provide landmarks by default
                 )
                 results.append(face_obj)
 
@@ -124,6 +121,39 @@ class FaceDetector:
         except Exception as e:
             logger.error(f"Error detecting faces: {e}")
             return []
+
+    def _extract_embedding(self, image: np.ndarray, bbox: List[int]) -> Optional[np.ndarray]:
+        """
+        Extract embedding for a specific face region.
+
+        Args:
+            image: Input image
+            bbox: Bounding box (x1, y1, x2, y2)
+
+        Returns:
+            Face embedding vector or None if extraction fails
+        """
+        try:
+            from deepface import DeepFace
+
+            x1, y1, x2, y2 = bbox
+            face_region = image[y1:y2, x1:x2]
+
+            # Extract embedding using DeepFace
+            embeddings = DeepFace.represent(
+                face_region,
+                model_name=self.model_name,
+                enforce_detection=False
+            )
+
+            if embeddings and len(embeddings) > 0:
+                return np.array(embeddings[0]['embedding'])
+            else:
+                return None
+
+        except Exception as e:
+            logger.warning(f"Failed to extract embedding: {e}")
+            return None
 
     def _clamp_bbox(self, bbox: List[int],
                    image_shape: Tuple[int, int, int]) -> List[int]:
@@ -194,7 +224,7 @@ class FaceDetector:
         return image[y1:y2, x1:x2].copy()
 
     def get_embedding(self, image: np.ndarray,
-                     bbox: Tuple[int, int, int, int]) -> np.ndarray:
+                     bbox: Tuple[int, int, int, int]) -> Optional[np.ndarray]:
         """
         Get embedding for a specific face region.
 
@@ -203,17 +233,10 @@ class FaceDetector:
             bbox: Bounding box (x1, y1, x2, y2)
 
         Returns:
-            Face embedding vector
+            Face embedding vector or None
         """
-        x1, y1, x2, y2 = bbox
-        face_region = image[y1:y2, x1:x2]
-
-        faces = self.detect_faces(face_region)
-        if faces:
-            return faces[0].embedding
-        else:
-            logger.warning("No face detected in specified region")
-            return None
+        bbox_list = list(bbox)
+        return self._extract_embedding(image, bbox_list)
 
 
 def test_detector():
@@ -223,7 +246,7 @@ def test_detector():
     detector = FaceDetector()
 
     # Test with a sample image if available
-    test_image_path = "./samples/person_01/test_image.jpg"
+    test_image_path = "./samples/person_01/sample_01.jpg"
     if Path(test_image_path).exists():
         faces = detector.detect_from_file(test_image_path)
         print(f"Detected {len(faces)} faces")

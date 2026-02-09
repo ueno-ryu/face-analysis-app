@@ -32,10 +32,10 @@ class FaceClassifier:
                  samples_dir: str,
                  embeddings_dir: str,
                  database_path: str,
-                 model_name: str = "buffalo_l",
+                 model_name: str = "VGG-Face",
+                 detector_backend: str = "retinaface",
+                 enforce_detection: bool = False,
                  confidence_threshold: float = 0.75,
-                 det_size: Tuple[int, int] = (640, 640),
-                 providers: List[str] = None,
                  parallel_workers: int = None,
                  video_sample_fps: int = 2,
                  checkpoint_interval: int = 100):
@@ -48,10 +48,10 @@ class FaceClassifier:
             samples_dir: Directory containing sample images
             embeddings_dir: Directory containing embedding files
             database_path: Path to SQLite database
-            model_name: InsightFace model name
+            model_name: DeepFace model name
+            detector_backend: Face detector backend
+            enforce_detection: Whether to enforce face detection
             confidence_threshold: Initial confidence threshold
-            det_size: Detection size
-            providers: ONNX execution providers
             parallel_workers: Number of parallel workers
             video_sample_fps: Video sampling FPS
             checkpoint_interval: Checkpoint save interval
@@ -71,8 +71,8 @@ class FaceClassifier:
 
         self.detector = FaceDetector(
             model_name=model_name,
-            det_size=det_size,
-            providers=providers or ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+            detector_backend=detector_backend,
+            enforce_detection=enforce_detection
         )
 
         self.recognizer = FaceRecognizer(

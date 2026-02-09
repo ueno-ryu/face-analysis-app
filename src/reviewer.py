@@ -345,18 +345,22 @@ class FaceReviewerGUI:
 
 
 def launch_reviewer(database_path: str, output_dir: str,
-                    model_name: str = "buffalo_l"):
+                    model_name: str = "VGG-Face",
+                    detector_backend: str = "retinaface"):
     """
     Launch the GUI reviewer.
 
     Args:
         database_path: Path to database
         output_dir: Output directory
-        model_name: InsightFace model name
+        model_name: DeepFace model name
+        detector_backend: Face detector backend
     """
     # Initialize components
     database = DatabaseManager(database_path)
-    detector = FaceDetector(model_name=model_name)
+    detector = FaceDetector(model_name=model_name,
+                           detector_backend=detector_backend,
+                           enforce_detection=False)
 
     # Create and run GUI
     reviewer = FaceReviewerGUI(

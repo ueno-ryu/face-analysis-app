@@ -5,11 +5,11 @@ numpy==1.24.3
 opencv-python==4.8.1.78
 Pillow==10.0.1
 
-# Database
-sqlite3
+# Database (sqlite3 is built-in)
+# sqlite3
 
-# GUI
-tkinter
+# GUI (tkinter is built-in on macOS)
+# tkinter
 
 # Utilities
 pyyaml==6.0.1
