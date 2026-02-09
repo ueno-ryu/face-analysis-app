@@ -10,10 +10,15 @@
 
 **진행률: 0% (0 / 17,302 파일 처리됨)**
 
+**기술 스택 변경:**
+- ✅ InsightFace → DeepFace로 전환 완료
+- ✅ DeepFace 설정: VGG-Face 모델 + RetinaFace 검출기
+- ✅ 샘플 이미지 git에서 제거 완료 (3,106개 파일)
+
 **환경 설정 완료:**
-- ✅ Python arm64 가상환경 설정 (venv_arm64)
-- ✅ insightface 0.2.1 설치 완료
-- ✅ 임베딩 생성 스크립트 실행 중 (백그라운드)
+- ✅ Python arm64 가상환경 (venv_arm64)
+- ✅ 핵심 모듈 구현 완료 (classifier, checkpoint, monitor)
+- ⏳ DeepFace 설치 진행 중 (의존성 해결 중)
 
 - **📋 프로젝트 문서**: [docs/face-analysis-app-handover.md](docs/face-analysis-app-handover.md)
 - **🔍 의존성 검증**: [VERIFICATION_REPORT.md](VERIFICATION_REPORT.md)
