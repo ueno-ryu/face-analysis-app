@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 import shutil
 
-from database import DatabaseManager
-from detector import FaceDetector
+from .database import DatabaseManager
+from .detector import FaceDetector
 
 logger = logging.getLogger(__name__)
 

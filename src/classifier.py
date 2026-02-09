@@ -13,10 +13,10 @@ from typing import List, Dict, Optional, Tuple
 from tqdm import tqdm
 import multiprocessing as mp
 
-from detector import FaceDetector, Face
-from recognizer import FaceRecognizer, MatchResult
-from database import DatabaseManager
-from checkpoint import CheckpointManager, CheckpointTracker
+from .detector import FaceDetector, Face
+from .recognizer import FaceRecognizer, MatchResult
+from .database import DatabaseManager
+from .checkpoint import CheckpointManager, CheckpointTracker
 
 logger = logging.getLogger(__name__)
 
