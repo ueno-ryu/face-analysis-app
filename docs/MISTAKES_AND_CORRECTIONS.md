@@ -26,6 +26,14 @@
   - Actual progress: 0% (initially)
   - Dataset size: 11GB
 
+### Issue 4: Python/numpy Architecture Mismatch (2026-02-09 23:50)
+- **Problem**: Embedding generation failed with architecture error
+- **Error**: "mach-o file, but is an incompatible architecture (have 'arm64', need 'x86_64')"
+- **Root Cause**: Python running in x86_64 (Rosetta) mode, numpy installed for arm64
+- **Impact**: Blocking all embedding generation and classification work
+- **Correction**: Use `arch -arm64 python3` to run scripts with native Apple Silicon architecture
+- **Status**: ✅ Fixed - embeddings generation now running with correct architecture
+
 ## Section 4: Timeline of corrections
 
 1. **2026-02-09**: Initial project setup with incorrect configurations

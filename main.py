@@ -117,29 +117,46 @@ def validate_config(config: dict) -> bool:
 def mode_rebuild_embeddings(config: dict):
     """
     Rebuild sample embeddings from sample images.
+    Uses the standalone generate_embeddings.py script.
 
     Args:
         config: Configuration dictionary
     """
     logger.info("=== Mode: Rebuild Embeddings ===")
 
-    classifier = FaceClassifier(
-        source_dir=config['paths']['source_directory'],
-        output_dir=config['paths']['output_directory'],
-        samples_dir=config['paths']['samples_directory'],
-        embeddings_dir=config['paths']['embeddings_directory'],
-        database_path=config['paths']['database_path'],
-        model_name=config['recognition']['model_name'],
-        detector_backend=config['recognition']['detector_backend'],
-        enforce_detection=config['recognition']['enforce_detection'],
-    )
+    import subprocess
 
-    success = classifier.generate_sample_embeddings()
+    script_path = Path(__file__).parent / "src" / "generate_embeddings.py"
 
-    if success:
+    if not script_path.exists():
+        logger.error(f"Embeddings script not found: {script_path}")
+        sys.exit(1)
+
+    logger.info(f"Running embeddings generation script: {script_path}")
+
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        # Print output
+        if result.stdout:
+            logger.info(result.stdout)
+        if result.stderr:
+            logger.warning(result.stderr)
+
         logger.info("✓ Sample embeddings generated successfully")
-    else:
-        logger.error("✗ Failed to generate sample embeddings")
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"✗ Failed to generate sample embeddings")
+        logger.error(f"Return code: {e.returncode}")
+        if e.stdout:
+            logger.error(f"STDOUT: {e.stdout}")
+        if e.stderr:
+            logger.error(f"STDERR: {e.stderr}")
         sys.exit(1)
 
 

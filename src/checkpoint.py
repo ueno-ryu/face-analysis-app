@@ -1,15 +1,18 @@
 """
 Checkpoint Module
 
-Manages processing checkpoints for resumable execution.
+Manages processing checkpoints for resumable execution using database backend.
+Supports both file-based (legacy) and database-based checkpointing.
 """
 
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from datetime import datetime
 from dataclasses import dataclass, asdict
+
+from src.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,7 @@ class CheckpointState:
 class CheckpointManager:
     """
     Manages checkpoint files for resumable processing.
+    Legacy file-based implementation for backward compatibility.
     """
 
     def __init__(self, checkpoint_dir: str = "./data/"):
@@ -225,6 +229,282 @@ class CheckpointManager:
             return all_files
 
 
+class DatabaseCheckpointManager:
+    """
+    Database-backed checkpoint manager for resumable processing.
+    Integrates with DatabaseManager for persistent checkpoint storage.
+    """
+
+    def __init__(self, db_manager: DatabaseManager):
+        """
+        Initialize database checkpoint manager.
+
+        Args:
+            db_manager: DatabaseManager instance
+        """
+        self.db = db_manager
+        logger.info("DatabaseCheckpointManager initialized")
+
+    def save_checkpoint(self, batch_number: int, processed_count: int,
+                       status: str = 'in_progress') -> int:
+        """
+        Save processing checkpoint to database.
+
+        Args:
+            batch_number: Current batch number
+            processed_count: Number of files processed so far
+            status: Checkpoint status (in_progress, completed, error)
+
+        Returns:
+            checkpoint_id
+        """
+        try:
+            # Convert state to JSON metadata
+            metadata = json.dumps({
+                'batch_number': batch_number,
+                'processed_files_count': processed_count,
+                'status': status,
+                'timestamp': datetime.now().isoformat()
+            })
+
+            checkpoint_id = self.db.save_checkpoint(
+                batch_number=batch_number,
+                processed_files_count=processed_count,
+                metadata=metadata
+            )
+
+            logger.info(f"Database checkpoint saved: batch={batch_number}, "
+                       f"processed={processed_count}, status={status}")
+
+            return checkpoint_id
+
+        except Exception as e:
+            logger.error(f"Failed to save database checkpoint: {e}")
+            raise
+
+    def load_checkpoint(self) -> Optional[Dict]:
+        """
+        Get last completed checkpoint from database.
+
+        Returns:
+            Checkpoint data or None if no checkpoint exists
+        """
+        try:
+            checkpoint = self.db.get_checkpoint()
+
+            if checkpoint is None:
+                logger.info("No checkpoint found in database")
+                return None
+
+            # Parse metadata if available
+            if checkpoint.get('metadata'):
+                try:
+                    metadata = json.loads(checkpoint['metadata'])
+                    checkpoint['metadata_parsed'] = metadata
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse checkpoint metadata")
+
+            logger.info(f"Database checkpoint loaded: batch={checkpoint['batch_number']}, "
+                       f"processed={checkpoint['processed_files_count']}, "
+                       f"status={checkpoint.get('status', 'unknown')}")
+
+            return checkpoint
+
+        except Exception as e:
+            logger.error(f"Failed to load database checkpoint: {e}")
+            return None
+
+    def get_remaining_files(self, checkpoint_batch: int) -> List[Dict]:
+        """
+        Return files not yet processed since the checkpoint.
+
+        Args:
+            checkpoint_batch: Batch number from checkpoint
+
+        Returns:
+            List of file records that haven't been processed
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Get files that are still pending or haven't been processed
+                # after the checkpoint batch
+                cursor.execute("""
+                    SELECT f.*
+                    FROM files f
+                    WHERE f.status = 'pending'
+                       OR f.file_id > (
+                           SELECT COALESCE(MAX(cp.processed_files_count), 0)
+                           FROM checkpoints cp
+                           WHERE cp.batch_number <= ?
+                       )
+                    ORDER BY f.file_id
+                """, (checkpoint_batch,))
+
+                rows = cursor.fetchall()
+                remaining_files = [dict(row) for row in rows]
+
+                logger.info(f"Found {len(remaining_files)} remaining files "
+                           f"from checkpoint batch {checkpoint_batch}")
+
+                return remaining_files
+
+        except Exception as e:
+            logger.error(f"Failed to get remaining files: {e}")
+            return []
+
+    def update_processed_files(self, file_id: int, worker_id: int,
+                              status: str = 'processed') -> bool:
+        """
+        Update processed file status and record worker.
+
+        Args:
+            file_id: File ID to update
+            worker_id: Worker process ID
+            status: Processing status
+
+        Returns:
+            True if successful
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Update file status
+                cursor.execute("""
+                    UPDATE files
+                    SET status = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE file_id = ?
+                """, (status, file_id))
+
+                # Check if processed_files record exists
+                cursor.execute("""
+                    SELECT file_id FROM processed_files WHERE file_id = ?
+                """, (file_id,))
+
+                if cursor.fetchone():
+                    # Update existing record
+                    cursor.execute("""
+                        UPDATE processed_files
+                        SET worker_id = ?, status = ?,
+                            processed_timestamp = CURRENT_TIMESTAMP
+                        WHERE file_id = ?
+                    """, (worker_id, status, file_id))
+                else:
+                    # Insert new record
+                    cursor.execute("""
+                        INSERT INTO processed_files (file_id, worker_id, status)
+                        VALUES (?, ?, ?)
+                    """, (file_id, worker_id, status))
+
+                logger.debug(f"Updated processed file: file_id={file_id}, "
+                            f"worker_id={worker_id}, status={status}")
+
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to update processed file: {e}")
+            return False
+
+    def get_checkpoint_with_files(self) -> Optional[Tuple[Dict, List[Dict]]]:
+        """
+        Get checkpoint with remaining files to process.
+
+        Returns:
+            Tuple of (checkpoint_data, remaining_files) or None
+        """
+        checkpoint = self.load_checkpoint()
+
+        if checkpoint is None:
+            return None
+
+        checkpoint_batch = checkpoint['batch_number']
+        remaining_files = self.get_remaining_files(checkpoint_batch)
+
+        return checkpoint, remaining_files
+
+    def mark_checkpoint_completed(self, checkpoint_id: Optional[int] = None):
+        """
+        Mark checkpoint as completed.
+
+        Args:
+            checkpoint_id: Checkpoint ID (uses latest if None)
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                if checkpoint_id:
+                    cursor.execute("""
+                        UPDATE checkpoints
+                        SET status = 'completed'
+                        WHERE checkpoint_id = ?
+                    """, (checkpoint_id,))
+                else:
+                    # Mark latest checkpoint as completed
+                    cursor.execute("""
+                        UPDATE checkpoints
+                        SET status = 'completed'
+                        WHERE checkpoint_id = (
+                            SELECT checkpoint_id FROM checkpoints
+                            ORDER BY checkpoint_id DESC
+                            LIMIT 1
+                        )
+                    """)
+
+                logger.info("Checkpoint marked as completed")
+
+        except Exception as e:
+            logger.error(f"Failed to mark checkpoint completed: {e}")
+            raise
+
+    def get_statistics(self) -> Dict:
+        """
+        Get checkpoint statistics.
+
+        Returns:
+            Dictionary with checkpoint statistics
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Get latest checkpoint
+                cursor.execute("""
+                    SELECT * FROM checkpoints
+                    ORDER BY checkpoint_id DESC
+                    LIMIT 1
+                """)
+                latest = cursor.fetchone()
+
+                # Count processed files
+                cursor.execute("""
+                    SELECT COUNT(*) as count
+                    FROM processed_files
+                    WHERE status = 'processed'
+                """)
+                processed_count = cursor.fetchone()['count']
+
+                # Count pending files
+                cursor.execute("""
+                    SELECT COUNT(*) as count
+                    FROM files
+                    WHERE status = 'pending'
+                """)
+                pending_count = cursor.fetchone()['count']
+
+                return {
+                    'latest_checkpoint': dict(latest) if latest else None,
+                    'processed_files_count': processed_count,
+                    'pending_files_count': pending_count
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get checkpoint statistics: {e}")
+            return {}
+
+
 class CheckpointTracker:
     """
     Tracks file processing progress for checkpointing.
@@ -311,6 +591,8 @@ class CheckpointTracker:
 def test_checkpoint():
     """Test checkpoint functionality."""
 
+    # Test file-based checkpoint
+    print("Testing file-based checkpoint...")
     manager = CheckpointManager("./data/")
 
     # Create test checkpoint
@@ -333,6 +615,45 @@ def test_checkpoint():
     progress = manager.get_progress_percentage(loaded_state)
     print(f"Progress: {progress:.2f}%")
 
+    # Test remaining files
+    all_files = [f"/test/image_{i}.jpg" for i in range(1, 201)]
+    remaining = manager.get_remaining_files(loaded_state, all_files)
+    print(f"Remaining files: {len(remaining)}")
+
+    # Cleanup
+    manager.delete_checkpoint()
+
+
+def test_database_checkpoint():
+    """Test database checkpoint functionality."""
+    from src.database import DatabaseManager
+
+    print("\nTesting database-based checkpoint...")
+
+    db = DatabaseManager("./data/test_checkpoint.db")
+    manager = DatabaseCheckpointManager(db)
+
+    # Save checkpoint
+    checkpoint_id = manager.save_checkpoint(
+        batch_number=1,
+        processed_count=100,
+        status='in_progress'
+    )
+    print(f"Saved checkpoint ID: {checkpoint_id}")
+
+    # Load checkpoint
+    checkpoint = manager.load_checkpoint()
+    print(f"Loaded checkpoint: {checkpoint}")
+
+    # Get statistics
+    stats = manager.get_statistics()
+    print(f"Statistics: {stats}")
+
+    # Mark completed
+    manager.mark_checkpoint_completed(checkpoint_id)
+    print("Checkpoint marked as completed")
+
 
 if __name__ == "__main__":
     test_checkpoint()
+    test_database_checkpoint()

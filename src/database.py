@@ -110,6 +110,17 @@ class DatabaseManager:
                 )
             """)
 
+            # Processed files table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS processed_files (
+                    file_id INTEGER PRIMARY KEY,
+                    worker_id INTEGER,
+                    status TEXT,
+                    processed_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (file_id) REFERENCES files(file_id)
+                )
+            """)
+
             # Create indexes for better query performance
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_files_status
