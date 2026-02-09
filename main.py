@@ -12,10 +12,10 @@ from pathlib import Path
 
 import yaml
 
-from detector import FaceDetector
-from classifier import FaceClassifier
-from reviewer import launch_reviewer
-from checkpoint import CheckpointManager
+from src.detector import FaceDetector
+from src.classifier import FaceClassifier
+from src.reviewer import launch_reviewer
+from src.checkpoint import CheckpointManager
 
 # Setup logging
 def setup_logging(log_level: str = "DEBUG"):

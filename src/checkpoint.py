@@ -310,7 +310,6 @@ class CheckpointTracker:
 
 def test_checkpoint():
     """Test checkpoint functionality."""
-    logging.basicConfig(level=logging.DEBUG)
 
     manager = CheckpointManager("./data/")
 

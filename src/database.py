@@ -416,7 +416,6 @@ class DatabaseManager:
 
 def test_database():
     """Test database functionality."""
-    logging.basicConfig(level=logging.DEBUG)
 
     db = DatabaseManager("./data/test_metadata.db")
 

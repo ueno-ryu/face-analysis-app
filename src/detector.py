@@ -241,7 +241,6 @@ class FaceDetector:
 
 def test_detector():
     """Test the face detector."""
-    logging.basicConfig(level=logging.DEBUG)
 
     detector = FaceDetector()
 

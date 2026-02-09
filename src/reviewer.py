@@ -372,7 +372,6 @@ def launch_reviewer(database_path: str, output_dir: str,
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
 
     launch_reviewer(
         database_path="./data/metadata.db",

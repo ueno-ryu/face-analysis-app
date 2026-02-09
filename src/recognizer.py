@@ -224,7 +224,6 @@ class FaceRecognizer:
 
 def test_recognizer():
     """Test the face recognizer."""
-    logging.basicConfig(level=logging.DEBUG)
 
     recognizer = FaceRecognizer(
         embeddings_dir="./embeddings/",
