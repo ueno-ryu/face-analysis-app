@@ -33,6 +33,13 @@ def main():
 
     for person_dir in tqdm(person_dirs, desc="Processing persons"):
         person_id = person_dir.name
+        output_path = embeddings_dir / f"{person_id}.npy"
+
+        # Skip if embedding already exists
+        if output_path.exists():
+            print(f"{person_id}: Skipping (already exists)")
+            continue
+
         embeddings = []
 
         # Get all image files

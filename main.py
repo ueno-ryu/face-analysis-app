@@ -160,13 +160,14 @@ def mode_rebuild_embeddings(config: dict):
         sys.exit(1)
 
 
-def mode_scan(config: dict, resume: bool = False):
+def mode_scan(config: dict, resume: bool = False, config_path: str = "config.yaml"):
     """
     Scan and classify files.
 
     Args:
         config: Configuration dictionary
         resume: Resume from checkpoint
+        config_path: Path to config file
     """
     logger.info("=== Mode: Scan ===")
 
@@ -176,20 +177,7 @@ def mode_scan(config: dict, resume: bool = False):
         sys.exit(1)
 
     # Initialize classifier
-    classifier = FaceClassifier(
-        source_dir=config['paths']['source_directory'],
-        output_dir=config['paths']['output_directory'],
-        samples_dir=config['paths']['samples_directory'],
-        embeddings_dir=config['paths']['embeddings_directory'],
-        database_path=config['paths']['database_path'],
-        model_name=config['recognition']['model_name'],
-        detector_backend=config['recognition']['detector_backend'],
-        enforce_detection=config['recognition']['enforce_detection'],
-        confidence_threshold=config['recognition']['confidence_threshold'],
-        parallel_workers=config['processing']['parallel_workers'],
-        video_sample_fps=config['processing']['video_sample_fps'],
-        checkpoint_interval=config['processing']['checkpoint_interval'],
-    )
+    classifier = FaceClassifier(config_path=config_path)
 
     # Load sample embeddings
     logger.info("Loading sample embeddings...")
@@ -227,29 +215,31 @@ def mode_review(config: dict):
     )
 
 
-def mode_full(config: dict, resume: bool = False):
+def mode_full(config: dict, resume: bool = False, config_path: str = "config.yaml"):
     """
     Run full pipeline (scan + review).
 
     Args:
         config: Configuration dictionary
         resume: Resume from checkpoint
+        config_path: Path to config file
     """
     logger.info("=== Mode: Full Pipeline ===")
 
     # Step 1: Scan
-    mode_scan(config, resume=resume)
+    mode_scan(config, resume=resume, config_path=config_path)
 
     # Step 2: Review
     mode_review(config)
 
 
-def mode_resume(config: dict):
+def mode_resume(config: dict, config_path: str = "config.yaml"):
     """
     Resume processing from checkpoint.
 
     Args:
         config: Configuration dictionary
+        config_path: Path to config file
     """
     logger.info("=== Mode: Resume ===")
 
@@ -259,7 +249,7 @@ def mode_resume(config: dict):
         logger.error("No checkpoint found. Run --mode scan first.")
         sys.exit(1)
 
-    mode_scan(config, resume=True)
+    mode_scan(config, resume=True, config_path=config_path)
 
 
 def main():
@@ -327,16 +317,16 @@ Examples:
             mode_rebuild_embeddings(config)
 
         elif args.mode == 'scan':
-            mode_scan(config, resume=False)
+            mode_scan(config, resume=False, config_path=args.config)
 
         elif args.mode == 'review':
             mode_review(config)
 
         elif args.mode == 'full':
-            mode_full(config, resume=False)
+            mode_full(config, resume=False, config_path=args.config)
 
         elif args.mode == 'resume':
-            mode_resume(config)
+            mode_resume(config, config_path=args.config)
 
         logger.info("=== Execution completed successfully ===")
 

@@ -55,8 +55,11 @@ class FaceClassifier:
         # Extract recognition settings
         rec = self.config['recognition']
         self.model_name = rec['model_name']
-        self.det_size = tuple(rec['det_size'])
-        self.providers = rec['providers']
+        self.detector_backend = rec['detector_backend']
+        self.enforce_detection = rec['enforce_detection']
+        # Legacy fields for compatibility
+        self.det_size = tuple(rec.get('det_size', [640, 640]))
+        self.providers = rec.get('providers', ['CPUExecutionProvider'])
 
         # Extract processing settings
         proc = self.config['processing']
@@ -84,8 +87,8 @@ class FaceClassifier:
 
         self.detector = FaceDetector(
             model_name=self.model_name,
-            det_size=self.det_size,
-            providers=self.providers
+            detector_backend=self.detector_backend,
+            enforce_detection=self.enforce_detection
         )
 
         self.recognizer = FaceRecognizer(
@@ -496,14 +499,12 @@ class FaceClassifier:
             # Process batch with current threshold
             batch_args = [(fp, self.confidence_threshold) for fp in batch_files]
 
-            with Pool(processes=self.parallel_workers) as pool:
-                imap_results = pool.imap_unordered(
-                    _process_file_wrapper,
-                    batch_args
-                )
-
-                for result in tqdm(imap_results, total=len(batch_files),
-                                  desc=f"Batch {batch_idx + 1}"):
+            # Use sequential processing for single worker to avoid Pool overhead
+            if self.parallel_workers == 1:
+                # Sequential processing - reuse detector/recognizer instances
+                for file_path, threshold in tqdm(batch_args, total=len(batch_files),
+                                                 desc=f"Batch {batch_idx + 1}"):
+                    result = self._process_single_file(file_path, threshold)
                     results["processed"] += 1
 
                     if result.get("error"):
@@ -515,10 +516,31 @@ class FaceClassifier:
 
                     # Update checkpoint for each file
                     tracker.update(result.get("file_path", ""))
+            else:
+                # Multiprocessing for multiple workers
+                with Pool(processes=self.parallel_workers) as pool:
+                    imap_results = pool.imap_unordered(
+                        _process_file_wrapper,
+                        batch_args
+                    )
+
+                    for result in tqdm(imap_results, total=len(batch_files),
+                                      desc=f"Batch {batch_idx + 1}"):
+                        results["processed"] += 1
+
+                        if result.get("error"):
+                            results["errors"] += 1
+                        elif len(result.get("detections", [])) == 0:
+                            results["no_faces"] += 1
+                        else:
+                            results["classifications"] += len(result.get("detections", []))
+
+                        # Update checkpoint for each file
+                        tracker.update(result.get("file_path", ""))
 
             # Save checkpoint after each batch
             logger.info(f"Batch {batch_idx + 1} completed. Saving checkpoint...")
-            tracker.save_checkpoint()
+            tracker.save()
 
             # Adjust threshold periodically
             if results["processed"] % self.threshold_adjust_interval == 0:
@@ -598,6 +620,94 @@ class FaceClassifier:
 
         return sorted(files)
 
+    def _process_single_file(self, file_path: str, threshold: float) -> Dict:
+        """
+        Process a single file using existing detector/recognizer instances.
+        Used for sequential processing (parallel_workers=1).
+
+        Args:
+            file_path: Path to file
+            threshold: Confidence threshold
+
+        Returns:
+            Processing result dictionary
+        """
+        result = {
+            "file_path": file_path,
+            "file_id": None,
+            "file_type": None,
+            "detections": [],
+            "error": None
+        }
+
+        try:
+            file_path_obj = Path(file_path)
+            file_type = self._get_file_type(file_path_obj)
+            result["file_type"] = file_type
+
+            # Save file record
+            file_id = self.database.save_file(
+                original_path=file_path,
+                file_type=file_type,
+                status="processing"
+            )
+            result["file_id"] = file_id
+
+            if file_type == "image":
+                # Process image
+                img = cv2.imread(str(file_path))
+                if img is None:
+                    result["error"] = "Failed to read image"
+                    return result
+
+                # Detect faces
+                faces = self.detector.detect_faces(img)
+                if not faces:
+                    result["error"] = "No faces detected"
+                    self.database.update_file_status(file_id, "completed", 0, [])
+                    return result
+
+                # Recognize faces using Face objects
+                for face in faces:
+                    # Face object has embedding, confidence, landmarks
+                    match_result = self.recognizer.match_face(face.embedding, threshold)
+                    if match_result.person_id:
+                        result["detections"].append({
+                            "person_id": match_result.person_id,
+                            "confidence": float(match_result.confidence),
+                            "similarity": float(match_result.similarity),
+                            "detection_confidence": float(face.confidence),
+                            "needs_review": match_result.needs_review
+                        })
+
+                # Save detections to database
+                self.database.save_detections(file_id, result["detections"])
+
+                # Determine if needs review
+                needs_review = any(
+                    d["confidence"] < threshold for d in result["detections"]
+                )
+                status = "needs_review" if needs_review else "completed"
+                self.database.update_file_status(
+                    file_id, status, len(result["detections"]),
+                    [d["person_id"] for d in result["detections"]]
+                )
+
+            elif file_type == "video":
+                # Process video (sample frames)
+                result["error"] = "Video processing not implemented in sequential mode"
+                return result
+
+            else:
+                result["error"] = f"Unknown file type: {file_type}"
+                return result
+
+        except Exception as e:
+            logger.error(f"Error processing {file_path}: {e}")
+            result["error"] = str(e)
+
+        return result
+
 
 # =============================================================================
 # Multiprocessing Helper Functions
@@ -635,14 +745,15 @@ def _process_file_wrapper(args: Tuple[str, float]) -> Dict:
     # Initialize components for this worker
     detector = FaceDetector(
         model_name=config['recognition']['model_name'],
-        det_size=tuple(config['recognition']['det_size']),
-        providers=config['recognition']['providers']
+        detector_backend=config['recognition']['detector_backend'],
+        enforce_detection=config['recognition']['enforce_detection']
     )
 
     recognizer = FaceRecognizer(
         embeddings_dir=config['paths']['embeddings_directory'],
         num_persons=config['persons']['count']
     )
+    recognizer.load_sample_embeddings()
 
     database = DatabaseManager(config['paths']['database_path'])
 
