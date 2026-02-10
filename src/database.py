@@ -217,6 +217,34 @@ class DatabaseManager:
             logger.debug(f"Saved detection: {detection_id} - person_id={person_id}")
             return detection_id
 
+    def save_detections(self, file_id: int, detections: List[Dict]) -> None:
+        """
+        Save multiple face detections for a file.
+
+        Args:
+            file_id: File ID
+            detections: List of detection dictionaries with keys:
+                       - person_id: Matched person ID
+                       - confidence: Confidence score
+                       - needs_review: Whether this detection needs manual review
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            for detection in detections:
+                cursor.execute("""
+                    INSERT INTO detections
+                    (file_id, person_id, confidence, needs_review)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    file_id,
+                    detection["person_id"],
+                    detection["confidence"],
+                    int(detection.get("needs_review", False))
+                ))
+
+            logger.debug(f"Saved {len(detections)} detections for file_id={file_id}")
+
     def save_copy(self, file_id: int, person_id: int, target_path: str) -> int:
         """
         Save copy record to database.
@@ -241,13 +269,16 @@ class DatabaseManager:
             logger.debug(f"Saved copy: {copy_id} - {target_path}")
             return copy_id
 
-    def update_file_status(self, file_id: int, status: str):
+    def update_file_status(self, file_id: int, status: str, num_faces: int = None,
+                          person_ids: List[int] = None):
         """
         Update file processing status.
 
         Args:
             file_id: File ID
             status: New status
+            num_faces: Number of faces detected (optional)
+            person_ids: List of matched person IDs (optional)
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -259,6 +290,10 @@ class DatabaseManager:
             """, (status, file_id))
 
             logger.debug(f"Updated file {file_id} status to {status}")
+            if num_faces is not None:
+                logger.debug(f"  - Faces detected: {num_faces}")
+            if person_ids is not None:
+                logger.debug(f"  - Matched persons: {person_ids}")
 
     def get_files_by_status(self, status: str) -> List[Dict]:
         """
